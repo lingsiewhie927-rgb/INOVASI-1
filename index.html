@@ -1,0 +1,737 @@
+<html lang="zh-CN"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>🐰 疯狂动物城 · 拔河绘本战 🦊 (双方答完自动结束)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&amp;display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background-color: #e0f2fe; height: 100vh; width: 100vw; margin: 0; display: flex; flex-direction: column; overflow: hidden; }
+        .admin-bar { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(12px); border-bottom: 2px solid #bae6fd; z-index: 100; flex-shrink: 0; }
+        .choice-btn { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+        .choice-btn:active { transform: scale(0.97); }
+        .battlefield { position: relative; width: 100%; display: flex; justify-content: center; align-items: center; overflow: visible; }
+        .rope-container { transition: transform 0.5s cubic-bezier(0.2, 0.9, 0.4, 1.1); display: flex; align-items: center; justify-content: center; position: relative; z-index: 10; overflow: visible; gap: 0; }
+        .rope { height: 22px; background: #795548; background-image: linear-gradient(45deg, rgba(255,255,255,0.15) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.15) 50%, rgba(255,255,255,0.15) 75%, transparent 75%, transparent); background-size: 24px 24px; border-radius: 40px; box-shadow: 0 6px 12px rgba(0,0,0,0.25); border: 3px solid #3e2723; width: 380px; flex-shrink: 0; position: relative; }
+        .fixed-center-dash { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 6px; height: 300px; background: repeating-linear-gradient(to bottom, #64748b 0px, #64748b 12px, transparent 12px, transparent 24px); z-index: 15; pointer-events: none; opacity: 0.7; }
+        .rope-marker { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 20; pointer-events: none; }
+        .rope-marker > div { width: 12px; height: 110px; background: linear-gradient(to bottom, #fde047, #f59e0b); border: 4px solid white; border-radius: 20px; }
+        @keyframes pull-feedback { 0% { transform: scale(1) rotate(0deg); } 50% { transform: scale(1.05) rotate(-2deg); } 100% { transform: scale(1) rotate(0deg); } }
+        .pull-anim { animation: pull-feedback 0.3s ease-out; }
+        .character { transition: all 0.4s cubic-bezier(0.34, 1.2, 0.64, 1); filter: drop-shadow(0 12px 18px rgba(0,0,0,0.2)); flex-shrink: 0; width: 130px; display: flex; justify-content: center; align-items: center; }
+        .character svg { width: 120px; height: auto; }
+        .modal-overlay { background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(10px); display: none; position: fixed; inset: 0; z-index: 200; align-items: center; justify-content: center; }
+        @keyframes float { 0%, 100% { transform: translateY(0) rotate(var(--base-rot)); } 50% { transform: translateY(-8px) rotate(var(--base-rot)); } }
+        .idle-float { animation: float 4s infinite ease-in-out; }
+        .table-wrapper { max-height: 380px; overflow-y: auto; border-radius: 20px; border: 2px solid #e2e8f0; }
+        .edit-table th { background: #f8fafc; font-weight: 700; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #334155; }
+        .report-card { max-height: 400px; overflow-y: auto; }
+        .disabled-btn { opacity: 0.6; pointer-events: none; filter: grayscale(0.1); }
+        .batch-panel { background: #fefce8; border-radius: 1.5rem; padding: 1rem; margin-bottom: 1rem; border: 2px solid #fde047; }
+        .password-eye { cursor: pointer; position: absolute; right: 12px; top: 50%; transform: translateY(-50%); user-select: none; }
+        .lock-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 10000; display: flex; align-items: center; justify-content: center; flex-direction: column; color: white; backdrop-filter: blur(12px); }
+        .input-group { position: relative; margin-bottom: 1rem; }
+        .pdf-report-container { font-family: 'Inter', sans-serif; background: white; padding: 2rem; max-width: 1200px; margin: 0 auto; color: #1e293b; line-height: 1.5; }
+        .pdf-header { text-align: center; border-bottom: 3px solid #cbd5e1; margin-bottom: 1.5rem; padding-bottom: 1rem; }
+        .pdf-score { font-size: 1.8rem; font-weight: 800; text-align: center; background: #f1f5f9; display: inline-block; padding: 0.5rem 1.5rem; border-radius: 2rem; margin: 1rem auto; }
+        .pdf-two-columns { display: flex; flex-direction: row; gap: 2rem; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; }
+        .pdf-column { flex: 1; min-width: 280px; break-inside: avoid; }
+        .pdf-card { border: 1px solid #e2e8f0; border-radius: 1rem; padding: 1rem; margin-bottom: 1.5rem; background: white; height: 100%; }
+        .pdf-card-title { font-size: 1.4rem; font-weight: 800; margin-bottom: 1rem; border-left: 6px solid; padding-left: 0.75rem; }
+        .pdf-record { border-bottom: 1px solid #e2e8f0; padding: 0.75rem 0; }
+        .pdf-record:last-child { border-bottom: none; }
+        .pdf-question { font-weight: 700; margin-bottom: 0.25rem; font-size: 0.95rem; }
+        .pdf-answer { font-size: 0.85rem; margin-left: 0.5rem; }
+        .correct-badge { color: #15803d; font-weight: 600; }
+        .wrong-badge { color: #b91c1c; font-weight: 600; }
+        .pdf-correct-answer { margin-top: 0.2rem; font-size: 0.8rem; color: #475569; }
+    </style>
+<style>*, ::before, ::after{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }::backdrop{--tw-border-spacing-x:0;--tw-border-spacing-y:0;--tw-translate-x:0;--tw-translate-y:0;--tw-rotate:0;--tw-skew-x:0;--tw-skew-y:0;--tw-scale-x:1;--tw-scale-y:1;--tw-pan-x: ;--tw-pan-y: ;--tw-pinch-zoom: ;--tw-scroll-snap-strictness:proximity;--tw-gradient-from-position: ;--tw-gradient-via-position: ;--tw-gradient-to-position: ;--tw-ordinal: ;--tw-slashed-zero: ;--tw-numeric-figure: ;--tw-numeric-spacing: ;--tw-numeric-fraction: ;--tw-ring-inset: ;--tw-ring-offset-width:0px;--tw-ring-offset-color:#fff;--tw-ring-color:rgb(59 130 246 / 0.5);--tw-ring-offset-shadow:0 0 #0000;--tw-ring-shadow:0 0 #0000;--tw-shadow:0 0 #0000;--tw-shadow-colored:0 0 #0000;--tw-blur: ;--tw-brightness: ;--tw-contrast: ;--tw-grayscale: ;--tw-hue-rotate: ;--tw-invert: ;--tw-saturate: ;--tw-sepia: ;--tw-drop-shadow: ;--tw-backdrop-blur: ;--tw-backdrop-brightness: ;--tw-backdrop-contrast: ;--tw-backdrop-grayscale: ;--tw-backdrop-hue-rotate: ;--tw-backdrop-invert: ;--tw-backdrop-opacity: ;--tw-backdrop-saturate: ;--tw-backdrop-sepia: ;--tw-contain-size: ;--tw-contain-layout: ;--tw-contain-paint: ;--tw-contain-style: }/* ! tailwindcss v3.4.17 | MIT License | https://tailwindcss.com */*,::after,::before{box-sizing:border-box;border-width:0;border-style:solid;border-color:#e5e7eb}::after,::before{--tw-content:''}:host,html{line-height:1.5;-webkit-text-size-adjust:100%;-moz-tab-size:4;tab-size:4;font-family:ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";font-feature-settings:normal;font-variation-settings:normal;-webkit-tap-highlight-color:transparent}body{margin:0;line-height:inherit}hr{height:0;color:inherit;border-top-width:1px}abbr:where([title]){-webkit-text-decoration:underline dotted;text-decoration:underline dotted}h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}a{color:inherit;text-decoration:inherit}b,strong{font-weight:bolder}code,kbd,pre,samp{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-feature-settings:normal;font-variation-settings:normal;font-size:1em}small{font-size:80%}sub,sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}sub{bottom:-.25em}sup{top:-.5em}table{text-indent:0;border-color:inherit;border-collapse:collapse}button,input,optgroup,select,textarea{font-family:inherit;font-feature-settings:inherit;font-variation-settings:inherit;font-size:100%;font-weight:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;margin:0;padding:0}button,select{text-transform:none}button,input:where([type=button]),input:where([type=reset]),input:where([type=submit]){-webkit-appearance:button;background-color:transparent;background-image:none}:-moz-focusring{outline:auto}:-moz-ui-invalid{box-shadow:none}progress{vertical-align:baseline}::-webkit-inner-spin-button,::-webkit-outer-spin-button{height:auto}[type=search]{-webkit-appearance:textfield;outline-offset:-2px}::-webkit-search-decoration{-webkit-appearance:none}::-webkit-file-upload-button{-webkit-appearance:button;font:inherit}summary{display:list-item}blockquote,dd,dl,figure,h1,h2,h3,h4,h5,h6,hr,p,pre{margin:0}fieldset{margin:0;padding:0}legend{padding:0}menu,ol,ul{list-style:none;margin:0;padding:0}dialog{padding:0}textarea{resize:vertical}input::placeholder,textarea::placeholder{opacity:1;color:#9ca3af}[role=button],button{cursor:pointer}:disabled{cursor:default}audio,canvas,embed,iframe,img,object,svg,video{display:block;vertical-align:middle}img,video{max-width:100%;height:auto}[hidden]:where(:not([hidden=until-found])){display:none}.absolute{position:absolute}.relative{position:relative}.sticky{position:sticky}.inset-0{inset:0px}.top-0{top:0px}.z-10{z-index:10}.z-20{z-index:20}.z-50{z-index:50}.mx-4{margin-left:1rem;margin-right:1rem}.mx-auto{margin-left:auto;margin-right:auto}.mb-1{margin-bottom:0.25rem}.mb-2{margin-bottom:0.5rem}.mb-3{margin-bottom:0.75rem}.mb-4{margin-bottom:1rem}.mb-6{margin-bottom:1.5rem}.mt-1{margin-top:0.25rem}.mt-2{margin-top:0.5rem}.mt-3{margin-top:0.75rem}.mt-4{margin-top:1rem}.mt-5{margin-top:1.25rem}.mt-6{margin-top:1.5rem}.inline-block{display:inline-block}.flex{display:flex}.grid{display:grid}.hidden{display:none}.min-h-\[140px\]{min-height:140px}.w-1\/4{width:25%}.w-16{width:4rem}.w-28{width:7rem}.w-80{width:20rem}.w-96{width:24rem}.w-full{width:100%}.max-w-4xl{max-width:56rem}.max-w-6xl{max-width:72rem}.max-w-7xl{max-width:80rem}.max-w-md{max-width:28rem}.flex-1{flex:1 1 0%}.flex-grow{flex-grow:1}.border-collapse{border-collapse:collapse}.cursor-not-allowed{cursor:not-allowed}.grid-cols-1{grid-template-columns:repeat(1, minmax(0, 1fr))}.flex-col{flex-direction:column}.flex-wrap{flex-wrap:wrap}.items-center{align-items:center}.justify-end{justify-content:flex-end}.justify-center{justify-content:center}.justify-between{justify-content:space-between}.gap-2{gap:0.5rem}.gap-2\.5{gap:0.625rem}.gap-3{gap:0.75rem}.gap-4{gap:1rem}.space-y-2 > :not([hidden]) ~ :not([hidden]){--tw-space-y-reverse:0;margin-top:calc(0.5rem * calc(1 - var(--tw-space-y-reverse)));margin-bottom:calc(0.5rem * var(--tw-space-y-reverse))}.overflow-hidden{overflow:hidden}.overflow-y-auto{overflow-y:auto}.rounded{border-radius:0.25rem}.rounded-2xl{border-radius:1rem}.rounded-3xl{border-radius:1.5rem}.rounded-\[2\.5rem\]{border-radius:2.5rem}.rounded-full{border-radius:9999px}.rounded-xl{border-radius:0.75rem}.border{border-width:1px}.border-2{border-width:2px}.border-4{border-width:4px}.border-b-8{border-bottom-width:8px}.border-l-4{border-left-width:4px}.border-r-4{border-right-width:4px}.border-b{border-bottom-width:1px}.border-blue-100{--tw-border-opacity:1;border-color:rgb(219 234 254 / var(--tw-border-opacity, 1))}.border-blue-200{--tw-border-opacity:1;border-color:rgb(191 219 254 / var(--tw-border-opacity, 1))}.border-blue-200\/60{border-color:rgb(191 219 254 / 0.6)}.border-blue-300{--tw-border-opacity:1;border-color:rgb(147 197 253 / var(--tw-border-opacity, 1))}.border-emerald-200{--tw-border-opacity:1;border-color:rgb(167 243 208 / var(--tw-border-opacity, 1))}.border-indigo-200{--tw-border-opacity:1;border-color:rgb(199 210 254 / var(--tw-border-opacity, 1))}.border-orange-100{--tw-border-opacity:1;border-color:rgb(255 237 213 / var(--tw-border-opacity, 1))}.border-orange-200\/60{border-color:rgb(254 215 170 / 0.6)}.border-orange-300{--tw-border-opacity:1;border-color:rgb(253 186 116 / var(--tw-border-opacity, 1))}.border-purple-200{--tw-border-opacity:1;border-color:rgb(233 213 255 / var(--tw-border-opacity, 1))}.border-slate-100{--tw-border-opacity:1;border-color:rgb(241 245 249 / var(--tw-border-opacity, 1))}.border-slate-200{--tw-border-opacity:1;border-color:rgb(226 232 240 / var(--tw-border-opacity, 1))}.border-slate-300{--tw-border-opacity:1;border-color:rgb(203 213 225 / var(--tw-border-opacity, 1))}.border-yellow-400\/50{border-color:rgb(250 204 21 / 0.5)}.bg-amber-100{--tw-bg-opacity:1;background-color:rgb(254 243 199 / var(--tw-bg-opacity, 1))}.bg-blue-50{--tw-bg-opacity:1;background-color:rgb(239 246 255 / var(--tw-bg-opacity, 1))}.bg-blue-600{--tw-bg-opacity:1;background-color:rgb(37 99 235 / var(--tw-bg-opacity, 1))}.bg-blue-700{--tw-bg-opacity:1;background-color:rgb(29 78 216 / var(--tw-bg-opacity, 1))}.bg-emerald-600{--tw-bg-opacity:1;background-color:rgb(5 150 105 / var(--tw-bg-opacity, 1))}.bg-gray-200{--tw-bg-opacity:1;background-color:rgb(229 231 235 / var(--tw-bg-opacity, 1))}.bg-green-500{--tw-bg-opacity:1;background-color:rgb(34 197 94 / var(--tw-bg-opacity, 1))}.bg-indigo-500{--tw-bg-opacity:1;background-color:rgb(99 102 241 / var(--tw-bg-opacity, 1))}.bg-indigo-600{--tw-bg-opacity:1;background-color:rgb(79 70 229 / var(--tw-bg-opacity, 1))}.bg-orange-50{--tw-bg-opacity:1;background-color:rgb(255 247 237 / var(--tw-bg-opacity, 1))}.bg-orange-500{--tw-bg-opacity:1;background-color:rgb(249 115 22 / var(--tw-bg-opacity, 1))}.bg-orange-600{--tw-bg-opacity:1;background-color:rgb(234 88 12 / var(--tw-bg-opacity, 1))}.bg-purple-600{--tw-bg-opacity:1;background-color:rgb(147 51 234 / var(--tw-bg-opacity, 1))}.bg-slate-100{--tw-bg-opacity:1;background-color:rgb(241 245 249 / var(--tw-bg-opacity, 1))}.bg-slate-50{--tw-bg-opacity:1;background-color:rgb(248 250 252 / var(--tw-bg-opacity, 1))}.bg-slate-800{--tw-bg-opacity:1;background-color:rgb(30 41 59 / var(--tw-bg-opacity, 1))}.bg-slate-900{--tw-bg-opacity:1;background-color:rgb(15 23 42 / var(--tw-bg-opacity, 1))}.bg-slate-900\/90{background-color:rgb(15 23 42 / 0.9)}.bg-white{--tw-bg-opacity:1;background-color:rgb(255 255 255 / var(--tw-bg-opacity, 1))}.bg-white\/10{background-color:rgb(255 255 255 / 0.1)}.bg-white\/90{background-color:rgb(255 255 255 / 0.9)}.bg-gradient-to-b{background-image:linear-gradient(to bottom, var(--tw-gradient-stops))}.from-blue-50{--tw-gradient-from:#eff6ff var(--tw-gradient-from-position);--tw-gradient-to:rgb(239 246 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), var(--tw-gradient-to)}.from-orange-50{--tw-gradient-from:#fff7ed var(--tw-gradient-from-position);--tw-gradient-to:rgb(255 247 237 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), var(--tw-gradient-to)}.from-sky-50{--tw-gradient-from:#f0f9ff var(--tw-gradient-from-position);--tw-gradient-to:rgb(240 249 255 / 0) var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), var(--tw-gradient-to)}.via-white{--tw-gradient-to:rgb(255 255 255 / 0)  var(--tw-gradient-to-position);--tw-gradient-stops:var(--tw-gradient-from), #fff var(--tw-gradient-via-position), var(--tw-gradient-to)}.to-amber-50\/30{--tw-gradient-to:rgb(255 251 235 / 0.3) var(--tw-gradient-to-position)}.to-white{--tw-gradient-to:#fff var(--tw-gradient-to-position)}.p-2{padding:0.5rem}.p-3{padding:0.75rem}.p-4{padding:1rem}.p-5{padding:1.25rem}.p-6{padding:1.5rem}.p-8{padding:2rem}.px-10{padding-left:2.5rem;padding-right:2.5rem}.px-12{padding-left:3rem;padding-right:3rem}.px-4{padding-left:1rem;padding-right:1rem}.px-5{padding-left:1.25rem;padding-right:1.25rem}.px-7{padding-left:1.75rem;padding-right:1.75rem}.px-8{padding-left:2rem;padding-right:2rem}.py-1\.5{padding-top:0.375rem;padding-bottom:0.375rem}.py-2{padding-top:0.5rem;padding-bottom:0.5rem}.py-2\.5{padding-top:0.625rem;padding-bottom:0.625rem}.py-3{padding-top:0.75rem;padding-bottom:0.75rem}.py-4{padding-top:1rem;padding-bottom:1rem}.py-5{padding-top:1.25rem;padding-bottom:1.25rem}.pr-10{padding-right:2.5rem}.pr-2{padding-right:0.5rem}.text-left{text-align:left}.text-center{text-align:center}.text-right{text-align:right}.font-mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}.text-2xl{font-size:1.5rem;line-height:2rem}.text-3xl{font-size:1.875rem;line-height:2.25rem}.text-5xl{font-size:3rem;line-height:1}.text-7xl{font-size:4.5rem;line-height:1}.text-lg{font-size:1.125rem;line-height:1.75rem}.text-sm{font-size:0.875rem;line-height:1.25rem}.text-xl{font-size:1.25rem;line-height:1.75rem}.text-xs{font-size:0.75rem;line-height:1rem}.font-black{font-weight:900}.font-bold{font-weight:700}.uppercase{text-transform:uppercase}.italic{font-style:italic}.leading-5{line-height:1.25rem}.leading-snug{line-height:1.375}.tracking-\[0\.2em\]{letter-spacing:0.2em}.tracking-tight{letter-spacing:-0.025em}.tracking-tighter{letter-spacing:-0.05em}.tracking-wider{letter-spacing:0.05em}.text-amber-600{--tw-text-opacity:1;color:rgb(217 119 6 / var(--tw-text-opacity, 1))}.text-amber-800{--tw-text-opacity:1;color:rgb(146 64 14 / var(--tw-text-opacity, 1))}.text-blue-600{--tw-text-opacity:1;color:rgb(37 99 235 / var(--tw-text-opacity, 1))}.text-blue-700{--tw-text-opacity:1;color:rgb(29 78 216 / var(--tw-text-opacity, 1))}.text-blue-800{--tw-text-opacity:1;color:rgb(30 64 175 / var(--tw-text-opacity, 1))}.text-emerald-700{--tw-text-opacity:1;color:rgb(4 120 87 / var(--tw-text-opacity, 1))}.text-gray-500{--tw-text-opacity:1;color:rgb(107 114 128 / var(--tw-text-opacity, 1))}.text-orange-500{--tw-text-opacity:1;color:rgb(249 115 22 / var(--tw-text-opacity, 1))}.text-orange-600{--tw-text-opacity:1;color:rgb(234 88 12 / var(--tw-text-opacity, 1))}.text-orange-700{--tw-text-opacity:1;color:rgb(194 65 12 / var(--tw-text-opacity, 1))}.text-purple-700{--tw-text-opacity:1;color:rgb(126 34 206 / var(--tw-text-opacity, 1))}.text-red-500{--tw-text-opacity:1;color:rgb(239 68 68 / var(--tw-text-opacity, 1))}.text-slate-400{--tw-text-opacity:1;color:rgb(148 163 184 / var(--tw-text-opacity, 1))}.text-slate-500{--tw-text-opacity:1;color:rgb(100 116 139 / var(--tw-text-opacity, 1))}.text-slate-600{--tw-text-opacity:1;color:rgb(71 85 105 / var(--tw-text-opacity, 1))}.text-slate-700{--tw-text-opacity:1;color:rgb(51 65 85 / var(--tw-text-opacity, 1))}.text-slate-800{--tw-text-opacity:1;color:rgb(30 41 59 / var(--tw-text-opacity, 1))}.text-white{--tw-text-opacity:1;color:rgb(255 255 255 / var(--tw-text-opacity, 1))}.text-red-400{--tw-text-opacity:1;color:rgb(248 113 113 / var(--tw-text-opacity, 1))}.opacity-50{opacity:0.5}.opacity-80{opacity:0.8}.shadow{--tw-shadow:0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);--tw-shadow-colored:0 1px 3px 0 var(--tw-shadow-color), 0 1px 2px -1px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-2xl{--tw-shadow:0 25px 50px -12px rgb(0 0 0 / 0.25);--tw-shadow-colored:0 25px 50px -12px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-lg{--tw-shadow:0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);--tw-shadow-colored:0 10px 15px -3px var(--tw-shadow-color), 0 4px 6px -4px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-md{--tw-shadow:0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);--tw-shadow-colored:0 4px 6px -1px var(--tw-shadow-color), 0 2px 4px -2px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-sm{--tw-shadow:0 1px 2px 0 rgb(0 0 0 / 0.05);--tw-shadow-colored:0 1px 2px 0 var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.shadow-xl{--tw-shadow:0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);--tw-shadow-colored:0 20px 25px -5px var(--tw-shadow-color), 0 8px 10px -6px var(--tw-shadow-color);box-shadow:var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow)}.outline-none{outline:2px solid transparent;outline-offset:2px}.drop-shadow-sm{--tw-drop-shadow:drop-shadow(0 1px 1px rgb(0 0 0 / 0.05));filter:var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow)}.backdrop-blur-md{--tw-backdrop-blur:blur(12px);-webkit-backdrop-filter:var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);backdrop-filter:var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia)}.backdrop-blur-sm{--tw-backdrop-blur:blur(4px);-webkit-backdrop-filter:var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);backdrop-filter:var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia)}.transition{transition-property:color, background-color, border-color, fill, stroke, opacity, box-shadow, transform, filter, -webkit-text-decoration-color, -webkit-backdrop-filter;transition-property:color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;transition-property:color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter, -webkit-text-decoration-color, -webkit-backdrop-filter;transition-timing-function:cubic-bezier(0.4, 0, 0.2, 1);transition-duration:150ms}.transition-all{transition-property:all;transition-timing-function:cubic-bezier(0.4, 0, 0.2, 1);transition-duration:150ms}.duration-200{transition-duration:200ms}.hover\:bg-amber-200:hover{--tw-bg-opacity:1;background-color:rgb(253 230 138 / var(--tw-bg-opacity, 1))}.hover\:bg-blue-50:hover{--tw-bg-opacity:1;background-color:rgb(239 246 255 / var(--tw-bg-opacity, 1))}.hover\:bg-blue-700:hover{--tw-bg-opacity:1;background-color:rgb(29 78 216 / var(--tw-bg-opacity, 1))}.hover\:bg-emerald-50:hover{--tw-bg-opacity:1;background-color:rgb(236 253 245 / var(--tw-bg-opacity, 1))}.hover\:bg-emerald-700:hover{--tw-bg-opacity:1;background-color:rgb(4 120 87 / var(--tw-bg-opacity, 1))}.hover\:bg-green-600:hover{--tw-bg-opacity:1;background-color:rgb(22 163 74 / var(--tw-bg-opacity, 1))}.hover\:bg-indigo-600:hover{--tw-bg-opacity:1;background-color:rgb(79 70 229 / var(--tw-bg-opacity, 1))}.hover\:bg-indigo-700:hover{--tw-bg-opacity:1;background-color:rgb(67 56 202 / var(--tw-bg-opacity, 1))}.hover\:bg-orange-600:hover{--tw-bg-opacity:1;background-color:rgb(234 88 12 / var(--tw-bg-opacity, 1))}.hover\:bg-purple-50:hover{--tw-bg-opacity:1;background-color:rgb(250 245 255 / var(--tw-bg-opacity, 1))}.hover\:bg-purple-700:hover{--tw-bg-opacity:1;background-color:rgb(126 34 206 / var(--tw-bg-opacity, 1))}.hover\:bg-slate-200:hover{--tw-bg-opacity:1;background-color:rgb(226 232 240 / var(--tw-bg-opacity, 1))}.hover\:bg-slate-50:hover{--tw-bg-opacity:1;background-color:rgb(248 250 252 / var(--tw-bg-opacity, 1))}.hover\:bg-slate-900:hover{--tw-bg-opacity:1;background-color:rgb(15 23 42 / var(--tw-bg-opacity, 1))}.hover\:bg-slate-50\/80:hover{background-color:rgb(248 250 252 / 0.8)}.hover\:text-gray-800:hover{--tw-text-opacity:1;color:rgb(31 41 55 / var(--tw-text-opacity, 1))}.hover\:text-indigo-600:hover{--tw-text-opacity:1;color:rgb(79 70 229 / var(--tw-text-opacity, 1))}.hover\:text-purple-600:hover{--tw-text-opacity:1;color:rgb(147 51 234 / var(--tw-text-opacity, 1))}.focus\:border-blue-500:focus{--tw-border-opacity:1;border-color:rgb(59 130 246 / var(--tw-border-opacity, 1))}.focus\:border-indigo-400:focus{--tw-border-opacity:1;border-color:rgb(129 140 248 / var(--tw-border-opacity, 1))}.focus\:border-purple-400:focus{--tw-border-opacity:1;border-color:rgb(192 132 252 / var(--tw-border-opacity, 1))}@media (min-width: 768px){.md\:grid-cols-2{grid-template-columns:repeat(2, minmax(0, 1fr))}}</style></head>
+<body>
+
+<!-- 顶部管理栏（同前，不变） -->
+<header class="admin-bar p-3">
+    <div class="max-w-7xl mx-auto flex items-center justify-between">
+        <div class="flex gap-2">
+            <button id="timeBtn" class="px-4 py-1.5 bg-white border-2 border-blue-200 rounded-xl text-blue-700 font-bold text-sm hover:bg-blue-50 shadow-sm">⏱ 时长</button>
+            <button id="quizBtn" class="px-4 py-1.5 bg-white border-2 border-blue-200 rounded-xl text-blue-700 font-bold text-sm hover:bg-blue-50 shadow-sm">📚 题库</button>
+            <button id="changePwdBtn" class="px-4 py-1.5 bg-white border-2 border-purple-200 rounded-xl text-purple-700 font-bold text-sm hover:bg-purple-50 shadow-sm">🔑 改密码</button>
+            <button id="generateHtmlBtn" class="px-4 py-1.5 bg-white border-2 border-emerald-200 rounded-xl text-emerald-700 font-bold text-sm hover:bg-emerald-50 shadow-sm">💾 生成HTML</button>
+        </div>
+        <div class="text-center"><h1 class="text-xl font-black text-slate-800 tracking-tight">ZOOTOPIA <span class="text-blue-600">TUG</span>·<span class="text-orange-500">WAR</span></h1></div>
+        <div class="flex gap-2">
+            <button onclick="resetGame()" class="px-4 py-1.5 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-200 border border-slate-200">🔄 重置</button>
+            <button id="startBtn" onclick="applyAndStart()" class="bg-blue-600 text-white py-1.5 px-7 rounded-xl font-black text-sm shadow-lg hover:bg-blue-700 transition">⚡ 开始对战</button>
+        </div>
+    </div>
+</header>
+
+<!-- 时长弹窗（上限600秒） -->
+<div id="time-modal" class="modal-overlay" onclick="if(event.target===this) closeModal('time-modal')" style="display: none;">
+    <div class="bg-white p-8 rounded-[2.5rem] shadow-2xl w-80 border-4 border-blue-100">
+        <h3 class="font-black text-slate-800 mb-4 text-center text-2xl">⏳ 比赛时间 (10~600秒)</h3>
+        <input type="number" id="setup-time" value="30" min="10" max="600" step="5" class="w-full px-4 py-5 border-4 border-slate-100 rounded-3xl outline-none focus:border-blue-500 font-black text-center text-5xl text-slate-700">
+        <button onclick="saveTimeAndClose()" class="w-full mt-6 bg-slate-800 text-white py-4 rounded-2xl font-black text-lg hover:bg-slate-900">确定并保存</button>
+    </div>
+</div>
+
+<!-- 题库弹窗（同前，不变） -->
+<div id="ques-modal" class="modal-overlay" onclick="if(event.target===this) closeModal('ques-modal')" style="display: none;">
+    <div class="bg-white p-6 rounded-[2.5rem] shadow-2xl w-full max-w-6xl border-4 border-orange-100 mx-4">
+        <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <h3 class="font-black text-slate-800 text-2xl flex items-center gap-2">📖 编辑绘本题库</h3>
+            <div class="flex gap-2">
+                <button onclick="openBatchPanel()" class="bg-indigo-500 text-white px-4 py-2 rounded-xl font-bold text-sm shadow hover:bg-indigo-600">📋 批量导入</button>
+                <button onclick="addQuestionRow()" class="bg-green-500 text-white px-4 py-2 rounded-xl font-bold text-sm shadow hover:bg-green-600">➕ 添加一行</button>
+                <button onclick="resetDefaultTable()" class="bg-amber-100 text-amber-800 px-4 py-2 rounded-xl font-bold text-sm shadow hover:bg-amber-200">🔄 恢复默认</button>
+            </div>
+        </div>
+        <div id="batch-panel" class="batch-panel transition-all duration-200 hidden">
+            <div class="flex justify-between items-center mb-2">
+                <span class="font-bold text-slate-700 text-sm">📌 批量粘贴题目 (一行一题，推荐竖线 | 分隔)</span>
+                <button onclick="closeBatchPanel()" class="text-gray-500 hover:text-gray-800 text-xl leading-5">✕</button>
+            </div>
+            <div class="bg-blue-50 p-3 rounded-xl mb-3 text-sm">
+                <p class="font-bold text-blue-800 mb-1">✅ 填写格式（必须按此顺序，共6列）：</p>
+                <p class="font-mono text-xs bg-white p-2 rounded border mb-1">题目 | A选项 | B选项 | C选项 | D选项 | 正确答案</p>
+                <p class="text-xs text-slate-600 mt-1">📌 正确答案必须与前面某个选项的文本<span class="font-bold">完全一致</span>（包括标点、空格）。<br>📌 推荐使用竖线 | 分隔，避免题目中的逗号干扰。也支持逗号 , 或制表符 \t。</p>
+            </div>
+            <textarea id="batch-text" rows="5" class="w-full p-3 border-2 border-slate-200 rounded-xl font-mono text-sm" placeholder="示例（竖线分隔）：
+朱迪在《疯狂动物城》中的全名是？|朱迪·霍普斯|朱迪·兔|霍普斯警官|朱迪·萝卜|朱迪·霍普斯
+尼克推销给仓鼠的冰棍是什么做的？|红色冰棍|蓝色冰棍|绿色冰棍|黄色冰棍|红色冰棍
+闪电（Flash）是什么动物？|树懒|树袋熊|蜗牛|海龟|树懒"></textarea>
+            <div class="flex justify-end gap-2 mt-3">
+                <button onclick="clearBatchText()" class="px-4 py-2 bg-gray-200 rounded-xl text-sm font-bold">清空</button>
+                <button onclick="importBatchQuestions()" class="px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow">✨ 解析并追加</button>
+            </div>
+            <p class="text-xs text-slate-500 mt-2">💡 每行自动识别竖线 | 、逗号 , 或制表符。空行自动跳过。成功后会追加到现有题库。</p>
+        </div>
+        <div class="table-wrapper">
+            <table class="edit-table w-full text-sm border-collapse">
+                <thead class="sticky top-0 bg-slate-50 z-10">
+                    <tr><th class="p-3 text-left w-1/4">题目</th><th class="p-3 text-left">A</th><th class="p-3 text-left">B</th><th class="p-3 text-left">C</th><th class="p-3 text-left">D</th><th class="p-3 text-left w-28">正确答案</th><th class="p-3 text-center w-16">操作</th></tr>
+                </thead>
+                <tbody id="questions-table-body"><tr class="border-b border-slate-200 hover:bg-slate-50/80"><td class="p-2"><input type="text" value="太阳可以提供我们什么？ (What can the sun give us?)" placeholder="题目" class="question-input w-full"></td>
+                         <td class="p-2"><input type="text" value="衣服 (Clothes)" placeholder="A" class="opt-a w-full"></td>
+                         <td class="p-2"><input type="text" value="玩具 (Toys)" placeholder="B" class="opt-b w-full"></td>
+                         <td class="p-2"><input type="text" value="光和热 (Light and heat)" placeholder="C" class="opt-c w-full"></td>
+                         <td class="p-2"><input type="text" value="冰淇淋 (Ice cream)" placeholder="D" class="opt-d w-full"></td>
+                         <td class="p-2"><select class="correct-select w-full"><option value="衣服 (Clothes)">A: 衣服 (Clothes)</option><option value="玩具 (Toys)">B: 玩具 (Toys)</option><option value="光和热 (Light and heat)">C: 光和热 (Light and heat)</option><option value="冰淇淋 (Ice cream)">D: 冰淇淋 (Ice cream)</option></select></td>
+                         <td class="p-2 text-center"><button onclick="this.closest('tr').remove()" class="text-red-400 font-bold text-lg">🗑️</button></td></tr><tr class="border-b border-slate-200 hover:bg-slate-50/80"><td class="p-2"><input type="text" value="在马来西亚，哪种天气最常见？ (Which weather is common in Malaysia?)" placeholder="题目" class="question-input w-full"></td>
+                         <td class="p-2"><input type="text" value="下雪 (Snowing)" placeholder="A" class="opt-a w-full"></td>
+                         <td class="p-2"><input type="text" value="阳光充足 (Sunny)" placeholder="B" class="opt-b w-full"></td>
+                         <td class="p-2"><input type="text" value="结冰 (Icy)" placeholder="C" class="opt-c w-full"></td>
+                         <td class="p-2"><input type="text" value="龙卷风 (Tornado)" placeholder="D" class="opt-d w-full"></td>
+                         <td class="p-2"><select class="correct-select w-full"><option value="下雪 (Snowing)">A: 下雪 (Snowing)</option><option value="阳光充足 (Sunny)">B: 阳光充足 (Sunny)</option><option value="结冰 (Icy)">C: 结冰 (Icy)</option><option value="龙卷风 (Tornado)">D: 龙卷风 (Tornado)</option></select></td>
+                         <td class="p-2 text-center"><button onclick="this.closest('tr').remove()" class="text-red-400 font-bold text-lg">🗑️</button></td></tr><tr class="border-b border-slate-200 hover:bg-slate-50/80"><td class="p-2"><input type="text" value="什么东西在天空中吹动，可以转动大风车？ (What blows in the sky to turn big windmills?)" placeholder="题目" class="question-input w-full"></td>
+                         <td class="p-2"><input type="text" value="雨 (Rain)" placeholder="A" class="opt-a w-full"></td>
+                         <td class="p-2"><input type="text" value="云 (Clouds)" placeholder="B" class="opt-b w-full"></td>
+                         <td class="p-2"><input type="text" value="风 (Wind)" placeholder="C" class="opt-c w-full"></td>
+                         <td class="p-2"><input type="text" value="鸟 (Birds)" placeholder="D" class="opt-d w-full"></td>
+                         <td class="p-2"><select class="correct-select w-full"><option value="雨 (Rain)">A: 雨 (Rain)</option><option value="云 (Clouds)">B: 云 (Clouds)</option><option value="风 (Wind)">C: 风 (Wind)</option><option value="鸟 (Birds)">D: 鸟 (Birds)</option></select></td>
+                         <td class="p-2 text-center"><button onclick="this.closest('tr').remove()" class="text-red-400 font-bold text-lg">🗑️</button></td></tr><tr class="border-b border-slate-200 hover:bg-slate-50/80"><td class="p-2"><input type="text" value="大海里的水一波一波地动，这叫什么？ (What do we call the moving water in the ocean?)" placeholder="题目" class="question-input w-full"></td>
+                         <td class="p-2"><input type="text" value="游泳 (Swimming)" placeholder="A" class="opt-a w-full"></td>
+                         <td class="p-2"><input type="text" value="海浪 (Wave)" placeholder="B" class="opt-b w-full"></td>
+                         <td class="p-2"><input type="text" value="喝水 (Drinking water)" placeholder="C" class="opt-c w-full"></td>
+                         <td class="p-2"><input type="text" value="冲凉 (Shower)" placeholder="D" class="opt-d w-full"></td>
+                         <td class="p-2"><select class="correct-select w-full"><option value="游泳 (Swimming)">A: 游泳 (Swimming)</option><option value="海浪 (Wave)">B: 海浪 (Wave)</option><option value="喝水 (Drinking water)">C: 喝水 (Drinking water)</option><option value="冲凉 (Shower)">D: 冲凉 (Shower)</option></select></td>
+                         <td class="p-2 text-center"><button onclick="this.closest('tr').remove()" class="text-red-400 font-bold text-lg">🗑️</button></td></tr><tr class="border-b border-slate-200 hover:bg-slate-50/80"><td class="p-2"><input type="text" value="什么是可更新能源？ (What is renewable energy?)" placeholder="题目" class="question-input w-full"></td>
+                         <td class="p-2"><input type="text" value="很快用完的东西 (Things that run out fast)" placeholder="A" class="opt-a w-full"></td>
+                         <td class="p-2"><input type="text" value="不会用完的自然能源 (Natural energy that never runs out)" placeholder="B" class="opt-b w-full"></td>
+                         <td class="p-2"><input type="text" value="很难找的东西 (Things that are hard to find)" placeholder="C" class="opt-c w-full"></td>
+                         <td class="p-2"><input type="text" value="垃圾桶 (Dustbin)" placeholder="D" class="opt-d w-full"></td>
+                         <td class="p-2"><select class="correct-select w-full"><option value="很快用完的东西 (Things that run out fast)">A: 很快用完的东西 (Things that run out fast)</option><option value="不会用完的自然能源 (Natural energy that never runs out)">B: 不会用完的自然能源 (Natural energy that never runs out)</option><option value="很难找的东西 (Things that are hard to find)">C: 很难找的东西 (Things that are hard to find)</option><option value="垃圾桶 (Dustbin)">D: 垃圾桶 (Dustbin)</option></select></td>
+                         <td class="p-2 text-center"><button onclick="this.closest('tr').remove()" class="text-red-400 font-bold text-lg">🗑️</button></td></tr><tr class="border-b border-slate-200 hover:bg-slate-50/80"><td class="p-2"><input type="text" value="哪种东西不是来自大自然的能源？ (Which is NOT energy from nature?)" placeholder="题目" class="question-input w-full"></td>
+                         <td class="p-2"><input type="text" value="太阳 (Sun)" placeholder="A" class="opt-a w-full"></td>
+                         <td class="p-2"><input type="text" value="风 (Wind)" placeholder="B" class="opt-b w-full"></td>
+                         <td class="p-2"><input type="text" value="塑料袋 (Plastic bag)" placeholder="C" class="opt-c w-full"></td>
+                         <td class="p-2"><input type="text" value="运行的水 (Moving water)" placeholder="D" class="opt-d w-full"></td>
+                         <td class="p-2"><select class="correct-select w-full"><option value="太阳 (Sun)">A: 太阳 (Sun)</option><option value="风 (Wind)">B: 风 (Wind)</option><option value="塑料袋 (Plastic bag)">C: 塑料袋 (Plastic bag)</option><option value="运行的水 (Moving water)">D: 运行的水 (Moving water)</option></select></td>
+                         <td class="p-2 text-center"><button onclick="this.closest('tr').remove()" class="text-red-400 font-bold text-lg">🗑️</button></td></tr><tr class="border-b border-slate-200 hover:bg-slate-50/80"><td class="p-2"><input type="text" value="太阳能板 (Solar Panel) 是用来做什么的？" placeholder="题目" class="question-input w-full"></td>
+                         <td class="p-2"><input type="text" value="收集阳光发电 (Collect sunlight to make electricity)" placeholder="A" class="opt-a w-full"></td>
+                         <td class="p-2"><input type="text" value="挡雨 (Block rain)" placeholder="B" class="opt-b w-full"></td>
+                         <td class="p-2"><input type="text" value="煮饭 (Cook food)" placeholder="C" class="opt-c w-full"></td>
+                         <td class="p-2"><input type="text" value="照镜子 (Look at mirror)" placeholder="D" class="opt-d w-full"></td>
+                         <td class="p-2"><select class="correct-select w-full"><option value="收集阳光发电 (Collect sunlight to make electricity)">A: 收集阳光发电 (Collect sunlight to make electricity)</option><option value="挡雨 (Block rain)">B: 挡雨 (Block rain)</option><option value="煮饭 (Cook food)">C: 煮饭 (Cook food)</option><option value="照镜子 (Look at mirror)">D: 照镜子 (Look at mirror)</option></select></td>
+                         <td class="p-2 text-center"><button onclick="this.closest('tr').remove()" class="text-red-400 font-bold text-lg">🗑️</button></td></tr><tr class="border-b border-slate-200 hover:bg-slate-50/80"><td class="p-2"><input type="text" value="水力发电是利用什么来发电？ (Hydro energy uses what to make power?)" placeholder="题目" class="question-input w-full"></td>
+                         <td class="p-2"><input type="text" value="泥土 (Soil)" placeholder="A" class="opt-a w-full"></td>
+                         <td class="p-2"><input type="text" value="流动的水 (Moving water)" placeholder="B" class="opt-b w-full"></td>
+                         <td class="p-2"><input type="text" value="木头 (Wood)" placeholder="C" class="opt-c w-full"></td>
+                         <td class="p-2"><input type="text" value="石头 (Stone)" placeholder="D" class="opt-d w-full"></td>
+                         <td class="p-2"><select class="correct-select w-full"><option value="泥土 (Soil)">A: 泥土 (Soil)</option><option value="流动的水 (Moving water)">B: 流动的水 (Moving water)</option><option value="木头 (Wood)">C: 木头 (Wood)</option><option value="石头 (Stone)">D: 石头 (Stone)</option></select></td>
+                         <td class="p-2 text-center"><button onclick="this.closest('tr').remove()" class="text-red-400 font-bold text-lg">🗑️</button></td></tr><tr class="border-b border-slate-200 hover:bg-slate-50/80"><td class="p-2"><input type="text" value="为什么我们要节约用电？ (Why should we save electricity?)" placeholder="题目" class="question-input w-full"></td>
+                         <td class="p-2"><input type="text" value="为了好玩 (For fun)" placeholder="A" class="opt-a w-full"></td>
+                         <td class="p-2"><input type="text" value="为了保护地球 (To protect the Earth)" placeholder="B" class="opt-b w-full"></td>
+                         <td class="p-2"><input type="text" value="为了浪费钱 (To waste money)" placeholder="C" class="opt-c w-full"></td>
+                         <td class="p-2"><input type="text" value="为了让天变黑 (To make it dark)" placeholder="D" class="opt-d w-full"></td>
+                         <td class="p-2"><select class="correct-select w-full"><option value="为了好玩 (For fun)">A: 为了好玩 (For fun)</option><option value="为了保护地球 (To protect the Earth)">B: 为了保护地球 (To protect the Earth)</option><option value="为了浪费钱 (To waste money)">C: 为了浪费钱 (To waste money)</option><option value="为了让天变黑 (To make it dark)">D: 为了让天变黑 (To make it dark)</option></select></td>
+                         <td class="p-2 text-center"><button onclick="this.closest('tr').remove()" class="text-red-400 font-bold text-lg">🗑️</button></td></tr><tr class="border-b border-slate-200 hover:bg-slate-50/80"><td class="p-2"><input type="text" value="如果我们一直浪费石油，石油会怎样？ (If we waste oil, what will happen?)" placeholder="题目" class="question-input w-full"></td>
+                         <td class="p-2"><input type="text" value="越来越多 (Become more)" placeholder="A" class="opt-a w-full"></td>
+                         <td class="p-2"><input type="text" value="会用完 (It will run out)" placeholder="B" class="opt-b w-full"></td>
+                         <td class="p-2"><input type="text" value="变成水 (Turn into water)" placeholder="C" class="opt-c w-full"></td>
+                         <td class="p-2"><input type="text" value="不会变 (No change)" placeholder="D" class="opt-d w-full"></td>
+                         <td class="p-2"><select class="correct-select w-full"><option value="越来越多 (Become more)">A: 越来越多 (Become more)</option><option value="会用完 (It will run out)">B: 会用完 (It will run out)</option><option value="变成水 (Turn into water)">C: 变成水 (Turn into water)</option><option value="不会变 (No change)">D: 不会变 (No change)</option></select></td>
+                         <td class="p-2 text-center"><button onclick="this.closest('tr').remove()" class="text-red-400 font-bold text-lg">🗑️</button></td></tr><tr class="border-b border-slate-200 hover:bg-slate-50/80"><td class="p-2"><input type="text" value="哪种能源是干净、不污染空气的？ (Which energy is clean and no pollution?)" placeholder="题目" class="question-input w-full"></td>
+                         <td class="p-2"><input type="text" value="黑烟 (Black smoke)" placeholder="A" class="opt-a w-full"></td>
+                         <td class="p-2"><input type="text" value="煤炭 (Coal)" placeholder="B" class="opt-b w-full"></td>
+                         <td class="p-2"><input type="text" value="太阳能 (Solar energy)" placeholder="C" class="opt-c w-full"></td>
+                         <td class="p-2"><input type="text" value="废气 (Exhaust gas)" placeholder="D" class="opt-d w-full"></td>
+                         <td class="p-2"><select class="correct-select w-full"><option value="黑烟 (Black smoke)">A: 黑烟 (Black smoke)</option><option value="煤炭 (Coal)">B: 煤炭 (Coal)</option><option value="太阳能 (Solar energy)">C: 太阳能 (Solar energy)</option><option value="废气 (Exhaust gas)">D: 废气 (Exhaust gas)</option></select></td>
+                         <td class="p-2 text-center"><button onclick="this.closest('tr').remove()" class="text-red-400 font-bold text-lg">🗑️</button></td></tr><tr class="border-b border-slate-200 hover:bg-slate-50/80"><td class="p-2"><input type="text" value="大风车（风力发电机）建在什么地方？ (Where are wind turbines built?)" placeholder="题目" class="question-input w-full"></td>
+                         <td class="p-2"><input type="text" value="房间里 (Inside a room)" placeholder="A" class="opt-a w-full"></td>
+                         <td class="p-2"><input type="text" value="风很大的地方 (Places with a lot of wind)" placeholder="B" class="opt-b w-full"></td>
+                         <td class="p-2"><input type="text" value="地洞里 (Inside a hole)" placeholder="C" class="opt-c w-full"></td>
+                         <td class="p-2"><input type="text" value="电影院 (Cinema)" placeholder="D" class="opt-d w-full"></td>
+                         <td class="p-2"><select class="correct-select w-full"><option value="房间里 (Inside a room)">A: 房间里 (Inside a room)</option><option value="风很大的地方 (Places with a lot of wind)">B: 风很大的地方 (Places with a lot of wind)</option><option value="地洞里 (Inside a hole)">C: 地洞里 (Inside a hole)</option><option value="电影院 (Cinema)">D: 电影院 (Cinema)</option></select></td>
+                         <td class="p-2 text-center"><button onclick="this.closest('tr').remove()" class="text-red-400 font-bold text-lg">🗑️</button></td></tr><tr class="border-b border-slate-200 hover:bg-slate-50/80"><td class="p-2"><input type="text" value="植物和动物的废料可以变成能源吗？ (Can plant and animal waste become energy?)" placeholder="题目" class="question-input w-full"></td>
+                         <td class="p-2"><input type="text" value="可以 (Yes)" placeholder="A" class="opt-a w-full"></td>
+                         <td class="p-2"><input type="text" value="不可以 (No)" placeholder="B" class="opt-b w-full"></td>
+                         <td class="p-2"><input type="text" value="不知道 (Don't know)" placeholder="C" class="opt-c w-full"></td>
+                         <td class="p-2"><input type="text" value="没可能 (No way)" placeholder="D" class="opt-d w-full"></td>
+                         <td class="p-2"><select class="correct-select w-full"><option value="可以 (Yes)">A: 可以 (Yes)</option><option value="不可以 (No)">B: 不可以 (No)</option><option value="不知道 (Don't know)">C: 不知道 (Don't know)</option><option value="没可能 (No way)">D: 没可能 (No way)</option></select></td>
+                         <td class="p-2 text-center"><button onclick="this.closest('tr').remove()" class="text-red-400 font-bold text-lg">🗑️</button></td></tr><tr class="border-b border-slate-200 hover:bg-slate-50/80"><td class="p-2"><input type="text" value="为了让空气更清新，我们应该做什么？ (What should we do for cleaner air?)" placeholder="题目" class="question-input w-full"></td>
+                         <td class="p-2"><input type="text" value="烧垃圾 (Burn rubbish)" placeholder="A" class="opt-a w-full"></td>
+                         <td class="p-2"><input type="text" value="种树和用绿能源 (Plant trees &amp; use green energy)" placeholder="B" class="opt-b w-full"></td>
+                         <td class="p-2"><input type="text" value="排黑烟 (Release black smoke)" placeholder="C" class="opt-c w-full"></td>
+                         <td class="p-2"><input type="text" value="砍树 (Cut trees)" placeholder="D" class="opt-d w-full"></td>
+                         <td class="p-2"><select class="correct-select w-full"><option value="烧垃圾 (Burn rubbish)">A: 烧垃圾 (Burn rubbish)</option><option value="种树和用绿能源 (Plant trees &amp; use green energy)">B: 种树和用绿能源 (Plant trees &amp; use green energy)</option><option value="排黑烟 (Release black smoke)">C: 排黑烟 (Release black smoke)</option><option value="砍树 (Cut trees)">D: 砍树 (Cut trees)</option></select></td>
+                         <td class="p-2 text-center"><button onclick="this.closest('tr').remove()" class="text-red-400 font-bold text-lg">🗑️</button></td></tr><tr class="border-b border-slate-200 hover:bg-slate-50/80"><td class="p-2"><input type="text" value="地球的深处其实是很热的，对吗？ (Deep inside the Earth is very hot, right?)" placeholder="题目" class="question-input w-full"></td>
+                         <td class="p-2"><input type="text" value="对 (Yes)" placeholder="A" class="opt-a w-full"></td>
+                         <td class="p-2"><input type="text" value="不对 (No)" placeholder="B" class="opt-b w-full"></td>
+                         <td class="p-2"><input type="text" value="很冷 (Very cold)" placeholder="C" class="opt-c w-full"></td>
+                         <td class="p-2"><input type="text" value="像冰块 (Like ice)" placeholder="D" class="opt-d w-full"></td>
+                         <td class="p-2"><select class="correct-select w-full"><option value="对 (Yes)">A: 对 (Yes)</option><option value="不对 (No)">B: 不对 (No)</option><option value="很冷 (Very cold)">C: 很冷 (Very cold)</option><option value="像冰块 (Like ice)">D: 像冰块 (Like ice)</option></select></td>
+                         <td class="p-2 text-center"><button onclick="this.closest('tr').remove()" class="text-red-400 font-bold text-lg">🗑️</button></td></tr></tbody>
+            </table>
+        </div>
+        <div class="flex justify-end mt-5"><button onclick="saveTableAndClose()" class="bg-orange-500 text-white px-8 py-3 rounded-2xl font-black shadow-md hover:bg-orange-600">💾 保存并关闭</button></div>
+    </div>
+</div>
+
+<!-- 密码验证模态框（同前） -->
+<div id="password-modal" class="modal-overlay" style="z-index: 1000; display: none;">
+    <div class="bg-white rounded-3xl shadow-2xl w-96 p-6 border-4 border-indigo-200 relative">
+        <div class="text-center mb-4"><h3 class="font-black text-2xl text-slate-800">🔐 管理员验证</h3><p class="text-sm text-slate-500 mt-1">请输入密码以修改比赛设置</p></div>
+        <div class="relative mb-3"><input type="password" id="password-input" class="w-full p-3 border-2 border-slate-200 rounded-xl pr-10 focus:border-indigo-400 outline-none font-mono" placeholder="密码"><span id="toggle-password" class="password-eye text-slate-400 hover:text-indigo-600">👁️</span></div>
+        <div class="flex justify-between items-center text-sm mb-4"><span id="attempts-left" class="text-red-500 font-bold">剩余尝试次数: 5</span><span id="wait-timer" class="text-amber-600 font-mono"></span></div>
+        <div class="flex gap-3"><button id="cancel-pwd-btn" class="flex-1 py-2.5 rounded-xl border border-slate-300 font-bold hover:bg-slate-50">取消</button><button id="confirm-pwd-btn" class="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white font-bold shadow hover:bg-indigo-700">确认</button></div>
+    </div>
+</div>
+
+<div id="change-pwd-modal" class="modal-overlay" style="z-index: 1000;">
+    <div class="bg-white rounded-3xl shadow-2xl w-96 p-6 border-4 border-purple-200 relative">
+        <div class="text-center mb-4"><h3 class="font-black text-2xl text-slate-800">🔐 更换管理员密码</h3><p class="text-sm text-slate-500 mt-1">请先验证当前密码，再设置新密码</p></div>
+        <div class="input-group relative mb-3"><input type="password" id="current-pwd" class="w-full p-3 border-2 border-slate-200 rounded-xl pr-10 focus:border-purple-400 outline-none" placeholder="当前密码"><span id="toggle-current" class="password-eye text-slate-400 hover:text-purple-600">👁️</span></div>
+        <div class="input-group relative mb-3"><input type="password" id="new-pwd" class="w-full p-3 border-2 border-slate-200 rounded-xl pr-10 focus:border-purple-400 outline-none" placeholder="新密码"><span id="toggle-new" class="password-eye text-slate-400 hover:text-purple-600">👁️</span></div>
+        <div class="input-group relative mb-4"><input type="password" id="confirm-pwd" class="w-full p-3 border-2 border-slate-200 rounded-xl pr-10 focus:border-purple-400 outline-none" placeholder="确认新密码"><span id="toggle-confirm" class="password-eye text-slate-400 hover:text-purple-600">👁️</span></div>
+        <div class="flex justify-between items-center text-sm mb-4"><span id="change-attempts-left" class="text-red-500 font-bold">剩余尝试次数: 5</span><span id="change-wait-timer" class="text-amber-600 font-mono"></span></div>
+        <div class="flex gap-3"><button id="cancel-change-btn" class="flex-1 py-2.5 rounded-xl border border-slate-300 font-bold hover:bg-slate-50">取消</button><button id="confirm-change-btn" class="flex-1 py-2.5 rounded-xl bg-purple-600 text-white font-bold shadow hover:bg-purple-700">确认更换</button></div>
+    </div>
+</div>
+
+<div id="global-lock" style="display: none;" class="lock-overlay"><div class="text-center p-6 max-w-md"><div class="text-7xl mb-4">🔒</div><h2 class="text-3xl font-black mb-3">页面已封锁</h2><p class="text-lg mb-2">由于多次密码错误，管理员功能已永久锁定。</p><p class="text-sm opacity-80">如需解锁，请联系系统管理员。</p><div class="mt-6 p-3 bg-white/10 rounded-xl inline-block">错误代码: LOCK-0987</div></div></div>
+
+<!-- 主游戏区 -->
+<div class="flex-grow flex w-full overflow-hidden">
+    <aside class="w-1/4 bg-gradient-to-b from-blue-50 to-white flex flex-col p-4 border-r-4 border-blue-200/60">
+        <div class="flex flex-col items-center mb-2"><div class="bg-blue-700 text-white px-5 py-1.5 rounded-full text-xs font-black uppercase mb-1 shadow-md">🐰 朱迪·霍普斯</div><div id="score1" class="text-7xl font-black text-blue-700 drop-shadow-sm">0</div></div>
+        <div class="flex-grow flex flex-col justify-center gap-3"><div class="p-5 bg-white rounded-3xl shadow-xl border-b-8 border-blue-300 min-h-[140px] flex items-center justify-center text-center"><p id="q1" class="text-slate-800 text-xl font-black leading-snug">🐾 准备答题！</p></div><div id="opts1" class="grid gap-2.5"></div></div>
+    </aside>
+    <main class="flex-grow flex flex-col relative bg-gradient-to-b from-sky-50 via-white to-amber-50/30 overflow-hidden">
+        <div class="flex justify-center py-4 z-20"><div class="bg-slate-900/90 backdrop-blur-sm px-10 py-3 rounded-3xl shadow-2xl border-2 border-yellow-400/50"><span id="timer" class="text-5xl font-mono font-black text-white tracking-wider">04:00</span></div></div>
+        <div class="flex-grow flex flex-col items-center justify-center">
+            <div class="battlefield"><div class="fixed-center-dash"></div>
+                <div id="rope-move-container" class="rope-container">
+                    <div id="char-blue" class="character idle-float" style="--base-rot: 5deg; margin-right: -8px;"><svg width="120" height="180" viewBox="0 0 200 260"><g transform="translate(100, 60)"><path d="M-35 -10 C-65 -100 -25 -110 -5 -10" fill="#9ca3af" stroke="#1e3a8a" stroke-width="2.5"></path><path d="M35 -10 C65 -100 25 -110 5 -10" fill="#9ca3af" stroke="#1e3a8a" stroke-width="2.5"></path></g><ellipse cx="100" cy="95" rx="48" ry="43" fill="#e5e7eb" stroke="#1e3a8a" stroke-width="2.5"></ellipse><path d="M65 135 L135 135 L150 210 L50 210 Z" fill="#1e3a8a" stroke="#0f172a" stroke-width="2"></path><rect x="50" y="195" width="100" height="18" fill="#111827" rx="5"></rect><circle cx="100" cy="160" r="9" fill="#fbbf24"></circle><path d="M135 160 Q180 165 200 175" stroke="#9ca3af" stroke-width="16" stroke-linecap="round" fill="none"></path></svg></div>
+                    <div class="relative flex items-center justify-center"><div class="rope"><div class="rope-marker"><div></div></div></div></div>
+                    <div id="char-red" class="character idle-float" style="--base-rot: -5deg; margin-left: -8px;"><svg width="120" height="180" viewBox="0 0 220 260"><path d="M75 55 L55 -5 L100 45" fill="#ea580c" stroke="#431407" stroke-width="2.5"></path><path d="M125 55 L145 -5 L100 45" fill="#ea580c" stroke="#431407" stroke-width="2.5"></path><path d="M50 95 Q100 45 150 95 Q165 135 100 145 Q35 135 50 95" fill="#fb923c" stroke="#7c2d12" stroke-width="2.5"></path><rect x="65" y="145" width="75" height="85" rx="12" fill="#84cc16" stroke="#365314" stroke-width="2.5"></rect><path d="M65 165 Q30 165 0 175" stroke="#fb923c" stroke-width="18" stroke-linecap="round" fill="none"></path></svg></div>
+                </div>
+            </div>
+            <div id="status-label" class="mb-4 px-12 py-3 bg-white/90 backdrop-blur-sm shadow-xl rounded-full font-black text-slate-800 italic uppercase tracking-[0.2em] border-2 border-slate-200 text-sm z-20">⚡ 拉 锯 战 ⚡</div>
+        </div>
+        <div id="game-over" class="hidden absolute inset-0 bg-white/98 backdrop-blur-md z-50 flex flex-col items-center justify-center p-6 text-center overflow-y-auto">
+            <h2 id="winner-text" class="text-7xl font-black mb-2 italic tracking-tighter">WINNER</h2><div id="final-stats" class="text-slate-700 text-3xl font-black italic mb-6">0 : 0</div>
+            <div class="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-4 mb-6"><div class="bg-blue-50 p-4 rounded-3xl border-2 border-blue-100"><h4 class="font-black text-blue-700 mb-2 flex items-center justify-center gap-2">🐰 朱迪的答题卡</h4><div id="judy-report" class="report-card space-y-2 text-left pr-2"></div></div><div class="bg-orange-50 p-4 rounded-3xl border-2 border-orange-100"><h4 class="font-black text-orange-700 mb-2 flex items-center justify-center gap-2">🦊 尼克的答题卡</h4><div id="nick-report" class="report-card space-y-2 text-left pr-2"></div></div></div>
+            <div class="flex gap-4 items-center justify-center flex-wrap"><button id="downloadPdfBtn" class="bg-emerald-600 text-white px-8 py-3 rounded-2xl font-black text-xl shadow-lg hover:bg-emerald-700 transition-all flex items-center gap-2">📄 下载战报 PDF</button><button id="playAgainBtn" class="bg-slate-900 text-white px-10 py-3 rounded-2xl font-black text-xl shadow-2xl opacity-50 cursor-not-allowed transition-all" disabled="">✨ 再战一局 ✨</button></div>
+            <p class="text-xs text-slate-400 mt-4">⚠️ 请先下载战报PDF，才能再次游戏</p>
+        </div>
+    </main>
+    <aside class="w-1/4 bg-gradient-to-b from-orange-50 to-white flex flex-col p-4 border-l-4 border-orange-200/60 text-right">
+        <div class="flex flex-col items-center mb-2"><div class="bg-orange-600 text-white px-5 py-1.5 rounded-full text-xs font-black uppercase mb-1 shadow-md">🦊 尼克·王尔德</div><div id="score2" class="text-7xl font-black text-orange-600 drop-shadow-sm">0</div></div>
+        <div class="flex-grow flex flex-col justify-center gap-3"><div class="p-5 bg-white rounded-3xl shadow-xl border-b-8 border-orange-300 min-h-[140px] flex items-center justify-center text-center"><p id="q2" class="text-slate-800 text-xl font-black leading-snug">🦊 放马过来！</p></div><div id="opts2" class="grid gap-2.5"></div></div>
+    </aside>
+</div>
+
+<script>
+(function(){
+    "use strict";
+    // ---------- 密码管理 ----------
+    let passwordUnlocked = false;
+    let remainingAttempts = 5;
+    let isWaiting = false;
+    let waitTimeout = null;
+    let pendingModalId = null;
+    let globalLocked = false;
+    let currentPassword = localStorage.getItem('zootopia_admin_pwd') || "0987";
+    function savePasswordToLocal(pwd) { localStorage.setItem('zootopia_admin_pwd', pwd); currentPassword = pwd; }
+    function processWrongPassword() { if(globalLocked) return; remainingAttempts--; updateAttemptsDisplay(); if(remainingAttempts <= 0) permanentLock(); else startWaitPenalty(5); }
+    function startWaitPenalty(seconds) { if(isWaiting) return; isWaiting = true; const confirmBtns = [document.getElementById('confirm-pwd-btn'), document.getElementById('confirm-change-btn')]; confirmBtns.forEach(btn => { if(btn) btn.disabled = true; }); const pwdInputs = [document.getElementById('password-input'), document.getElementById('current-pwd')]; pwdInputs.forEach(inp => { if(inp) inp.disabled = true; }); let remain = seconds; const updateTimer = () => { const waitSpan = document.getElementById('wait-timer'); const changeWaitSpan = document.getElementById('change-wait-timer'); if(waitSpan) waitSpan.innerText = `⏳ 等待 ${remain}s`; if(changeWaitSpan) changeWaitSpan.innerText = `⏳ 等待 ${remain}s`; if(remain <= 0) { clearWaitState(); confirmBtns.forEach(btn => { if(btn) btn.disabled = false; }); pwdInputs.forEach(inp => { if(inp) inp.disabled = false; }); if(waitSpan) waitSpan.innerText = ''; if(changeWaitSpan) changeWaitSpan.innerText = ''; } else { waitTimeout = setTimeout(() => { remain--; updateTimer(); }, 1000); } }; updateTimer(); }
+    function clearWaitState() { if(waitTimeout) { clearTimeout(waitTimeout); waitTimeout = null; } isWaiting = false; }
+    function updateAttemptsDisplay() { const attemptsSpan = document.getElementById('attempts-left'); const changeAttemptsSpan = document.getElementById('change-attempts-left'); if(attemptsSpan) attemptsSpan.innerText = `剩余尝试次数: ${remainingAttempts}`; if(changeAttemptsSpan) changeAttemptsSpan.innerText = `剩余尝试次数: ${remainingAttempts}`; if(remainingAttempts <= 0) permanentLock(); }
+    function permanentLock() { if(globalLocked) return; globalLocked = true; passwordUnlocked = false; const lockDiv = document.getElementById('global-lock'); if(lockDiv) lockDiv.style.display = 'flex'; ['timeBtn','quizBtn','changePwdBtn','startBtn','generateHtmlBtn'].forEach(id => { const btn = document.getElementById(id); if(btn){ btn.disabled = true; btn.style.pointerEvents = 'none'; } }); document.getElementById('password-modal').style.display = 'none'; document.getElementById('change-pwd-modal').style.display = 'none'; clearWaitState(); }
+    function verifyPasswordAndUnlock(inputPwd, onSuccess) { if(globalLocked) return false; if(isWaiting) { alert("请等待惩罚时间结束"); return false; } if(inputPwd === currentPassword) { remainingAttempts = 5; updateAttemptsDisplay(); passwordUnlocked = true; clearWaitState(); if(onSuccess) onSuccess(); return true; } else { processWrongPassword(); return false; } }
+    function showPasswordModal(modalId) { if(globalLocked) return; pendingModalId = modalId; const pwdModal = document.getElementById('password-modal'); document.getElementById('password-input').value = ''; pwdModal.style.display = 'flex'; if(!isWaiting) { document.getElementById('confirm-pwd-btn').disabled = false; document.getElementById('password-input').disabled = false; } }
+    function closePasswordModal() { if(isWaiting) { alert("正在惩罚等待中，无法关闭"); return; } document.getElementById('password-modal').style.display = 'none'; pendingModalId = null; }
+    function handlePasswordConfirm() { const entered = document.getElementById('password-input').value; verifyPasswordAndUnlock(entered, () => { document.getElementById('password-modal').style.display = 'none'; if(pendingModalId) { openModal(pendingModalId); pendingModalId = null; } }); }
+    function openChangePwdModal() { if(globalLocked) return; if(!passwordUnlocked) { showPasswordModal('change-pwd-modal'); return; } const changeModal = document.getElementById('change-pwd-modal'); document.getElementById('current-pwd').value = ''; document.getElementById('new-pwd').value = ''; document.getElementById('confirm-pwd').value = ''; changeModal.style.display = 'flex'; if(!isWaiting) document.getElementById('confirm-change-btn').disabled = false; updateAttemptsDisplay(); }
+    function closeChangePwdModal() { if(isWaiting) { alert("请等待惩罚结束"); return; } document.getElementById('change-pwd-modal').style.display = 'none'; }
+    function handleChangePassword() { if(globalLocked) return; if(isWaiting) { alert("请等待惩罚时间结束"); return; } const currentInput = document.getElementById('current-pwd').value; const newPwd = document.getElementById('new-pwd').value; const confirmNew = document.getElementById('confirm-pwd').value; if(currentInput !== currentPassword) { processWrongPassword(); alert("当前密码错误！"); document.getElementById('current-pwd').value = ''; return; } remainingAttempts = 5; updateAttemptsDisplay(); if(!newPwd || newPwd.length < 4) { alert("新密码长度至少4位"); return; } if(newPwd !== confirmNew) { alert("两次输入的新密码不一致"); return; } savePasswordToLocal(newPwd); alert("✅ 密码修改成功！新密码已生效。"); closeChangePwdModal(); passwordUnlocked = true; }
+    document.getElementById('confirm-pwd-btn').onclick = handlePasswordConfirm;
+    document.getElementById('cancel-pwd-btn').onclick = closePasswordModal;
+    document.getElementById('toggle-password').onclick = () => { const inp = document.getElementById('password-input'); inp.type = inp.type==='password'?'text':'password'; };
+    document.getElementById('toggle-current').onclick = () => { const inp = document.getElementById('current-pwd'); inp.type = inp.type==='password'?'text':'password'; };
+    document.getElementById('toggle-new').onclick = () => { const inp = document.getElementById('new-pwd'); inp.type = inp.type==='password'?'text':'password'; };
+    document.getElementById('toggle-confirm').onclick = () => { const inp = document.getElementById('confirm-pwd'); inp.type = inp.type==='password'?'text':'password'; };
+    document.getElementById('confirm-change-btn').onclick = handleChangePassword;
+    document.getElementById('cancel-change-btn').onclick = closeChangePwdModal;
+    document.getElementById('changePwdBtn').onclick = openChangePwdModal;
+    document.getElementById('timeBtn').onclick = () => { if(globalLocked) return; if(passwordUnlocked) openModal('time-modal'); else showPasswordModal('time-modal'); };
+    document.getElementById('quizBtn').onclick = () => { if(globalLocked) return; if(passwordUnlocked) { openModal('ques-modal'); refreshTableDisplay(); } else showPasswordModal('ques-modal'); };
+
+    // 时长持久化 (上限600秒)
+    const timeInput = document.getElementById('setup-time');
+    function loadSavedTime() {
+        const saved = localStorage.getItem('zootopia_game_duration');
+        if(saved !== null) {
+            let val = parseInt(saved, 10);
+            if(!isNaN(val) && val >= 10 && val <= 600) timeInput.value = val;
+            else timeInput.value = 30;
+        } else timeInput.value = 30;
+        if(gameState && !gameState.active) {
+            gameState.maxTime = parseInt(timeInput.value) || 30;
+            gameState.timeLeft = gameState.maxTime;
+            updateTimerDisplay();
+        }
+    }
+    function saveTimeAndClose() {
+        let val = parseInt(timeInput.value, 10);
+        if(isNaN(val)) val = 30;
+        val = Math.min(600, Math.max(10, val));
+        timeInput.value = val;
+        localStorage.setItem('zootopia_game_duration', val);
+        if(gameState && !gameState.active) {
+            gameState.maxTime = val;
+            gameState.timeLeft = val;
+            updateTimerDisplay();
+        }
+        closeModal('time-modal');
+        alert(`⏱️ 时长已保存为 ${val} 秒，刷新页面后仍然有效。`);
+    }
+    window.saveTimeAndClose = saveTimeAndClose;
+
+    // 默认题库
+    const DEFAULT_QUESTIONS = [
+  {
+    "q": "太阳可以提供我们什么？ (What can the sun give us?)",
+    "a": "衣服 (Clothes)",
+    "b": "玩具 (Toys)",
+    "c": "光和热 (Light and heat)",
+    "d": "冰淇淋 (Ice cream)",
+    "correct": "光和热 (Light and heat)"
+  },
+  {
+    "q": "在马来西亚，哪种天气最常见？ (Which weather is common in Malaysia?)",
+    "a": "下雪 (Snowing)",
+    "b": "阳光充足 (Sunny)",
+    "c": "结冰 (Icy)",
+    "d": "龙卷风 (Tornado)",
+    "correct": "阳光充足 (Sunny)"
+  },
+  {
+    "q": "什么东西在天空中吹动，可以转动大风车？ (What blows in the sky to turn big windmills?)",
+    "a": "雨 (Rain)",
+    "b": "云 (Clouds)",
+    "c": "风 (Wind)",
+    "d": "鸟 (Birds)",
+    "correct": "风 (Wind)"
+  },
+  {
+    "q": "大海里的水一波一波地动，这叫什么？ (What do we call the moving water in the ocean?)",
+    "a": "游泳 (Swimming)",
+    "b": "海浪 (Wave)",
+    "c": "喝水 (Drinking water)",
+    "d": "冲凉 (Shower)",
+    "correct": "海浪 (Wave)"
+  },
+  {
+    "q": "什么是可更新能源？ (What is renewable energy?)",
+    "a": "很快用完的东西 (Things that run out fast)",
+    "b": "不会用完的自然能源 (Natural energy that never runs out)",
+    "c": "很难找的东西 (Things that are hard to find)",
+    "d": "垃圾桶 (Dustbin)",
+    "correct": "不会用完的自然能源 (Natural energy that never runs out)"
+  },
+  {
+    "q": "哪种东西不是来自大自然的能源？ (Which is NOT energy from nature?)",
+    "a": "太阳 (Sun)",
+    "b": "风 (Wind)",
+    "c": "塑料袋 (Plastic bag)",
+    "d": "运行的水 (Moving water)",
+    "correct": "塑料袋 (Plastic bag)"
+  },
+  {
+    "q": "太阳能板 (Solar Panel) 是用来做什么的？",
+    "a": "收集阳光发电 (Collect sunlight to make electricity)",
+    "b": "挡雨 (Block rain)",
+    "c": "煮饭 (Cook food)",
+    "d": "照镜子 (Look at mirror)",
+    "correct": "收集阳光发电 (Collect sunlight to make electricity)"
+  },
+  {
+    "q": "水力发电是利用什么来发电？ (Hydro energy uses what to make power?)",
+    "a": "泥土 (Soil)",
+    "b": "流动的水 (Moving water)",
+    "c": "木头 (Wood)",
+    "d": "石头 (Stone)",
+    "correct": "流动的水 (Moving water)"
+  },
+  {
+    "q": "为什么我们要节约用电？ (Why should we save electricity?)",
+    "a": "为了好玩 (For fun)",
+    "b": "为了保护地球 (To protect the Earth)",
+    "c": "为了浪费钱 (To waste money)",
+    "d": "为了让天变黑 (To make it dark)",
+    "correct": "为了保护地球 (To protect the Earth)"
+  },
+  {
+    "q": "如果我们一直浪费石油，石油会怎样？ (If we waste oil, what will happen?)",
+    "a": "越来越多 (Become more)",
+    "b": "会用完 (It will run out)",
+    "c": "变成水 (Turn into water)",
+    "d": "不会变 (No change)",
+    "correct": "会用完 (It will run out)"
+  },
+  {
+    "q": "哪种能源是干净、不污染空气的？ (Which energy is clean and no pollution?)",
+    "a": "黑烟 (Black smoke)",
+    "b": "煤炭 (Coal)",
+    "c": "太阳能 (Solar energy)",
+    "d": "废气 (Exhaust gas)",
+    "correct": "太阳能 (Solar energy)"
+  },
+  {
+    "q": "大风车（风力发电机）建在什么地方？ (Where are wind turbines built?)",
+    "a": "房间里 (Inside a room)",
+    "b": "风很大的地方 (Places with a lot of wind)",
+    "c": "地洞里 (Inside a hole)",
+    "d": "电影院 (Cinema)",
+    "correct": "风很大的地方 (Places with a lot of wind)"
+  },
+  {
+    "q": "植物和动物的废料可以变成能源吗？ (Can plant and animal waste become energy?)",
+    "a": "可以 (Yes)",
+    "b": "不可以 (No)",
+    "c": "不知道 (Don't know)",
+    "d": "没可能 (No way)",
+    "correct": "可以 (Yes)"
+  },
+  {
+    "q": "为了让空气更清新，我们应该做什么？ (What should we do for cleaner air?)",
+    "a": "烧垃圾 (Burn rubbish)",
+    "b": "种树和用绿能源 (Plant trees & use green energy)",
+    "c": "排黑烟 (Release black smoke)",
+    "d": "砍树 (Cut trees)",
+    "correct": "种树和用绿能源 (Plant trees & use green energy)"
+  },
+  {
+    "q": "地球的深处其实是很热的，对吗？ (Deep inside the Earth is very hot, right?)",
+    "a": "对 (Yes)",
+    "b": "不对 (No)",
+    "c": "很冷 (Very cold)",
+    "d": "像冰块 (Like ice)",
+    "correct": "对 (Yes)"
+  }
+];
+
+    let gameState = { 
+        pool: [],           
+        team1Remaining: [], 
+        team2Remaining: [], 
+        score1: 0, score2: 0, 
+        timeLeft: 30, maxTime: 30, 
+        active: false, ropePos: 0, 
+        timerInterval: null, 
+        gameLog: { team1: [], team2: [] }, 
+        pendingTimeouts: [] 
+    };
+    const domGame = {
+        sTime: document.getElementById('setup-time'), timer: document.getElementById('timer'), q1: document.getElementById('q1'), q2: document.getElementById('q2'),
+        o1: document.getElementById('opts1'), o2: document.getElementById('opts2'), rope: document.getElementById('rope-move-container'), status: document.getElementById('status-label'),
+        gameOver: document.getElementById('game-over'), winText: document.getElementById('winner-text'), finalRes: document.getElementById('final-stats'),
+        score1: document.getElementById('score1'), score2: document.getElementById('score2'),
+        charJudy: document.getElementById('char-blue'), charNick: document.getElementById('char-red'), tableBody: document.getElementById('questions-table-body'),
+        judyReport: document.getElementById('judy-report'), nickReport: document.getElementById('nick-report'),
+        downloadBtn: document.getElementById('downloadPdfBtn'), playAgainBtn: document.getElementById('playAgainBtn')
+    };
+    function escapeHtml(s) { if(!s) return ''; return String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+    // 表格渲染
+    function addQuestionRow(prefill = null) {
+        const row = document.createElement('tr'); row.className = 'border-b border-slate-200 hover:bg-slate-50/80';
+        const vals = prefill || { q: '', a: '', b: '', c: '', d: '', correct: '' };
+        row.innerHTML = `<td class="p-2"><input type="text" value="${escapeHtml(vals.q)}" placeholder="题目" class="question-input w-full"></td>
+                         <td class="p-2"><input type="text" value="${escapeHtml(vals.a)}" placeholder="A" class="opt-a w-full"></td>
+                         <td class="p-2"><input type="text" value="${escapeHtml(vals.b)}" placeholder="B" class="opt-b w-full"></td>
+                         <td class="p-2"><input type="text" value="${escapeHtml(vals.c)}" placeholder="C" class="opt-c w-full"></td>
+                         <td class="p-2"><input type="text" value="${escapeHtml(vals.d)}" placeholder="D" class="opt-d w-full"></td>
+                         <td class="p-2"><select class="correct-select w-full"></select></td>
+                         <td class="p-2 text-center"><button onclick="this.closest('tr').remove()" class="text-red-400 font-bold text-lg">🗑️</button></td>`;
+        domGame.tableBody.appendChild(row);
+        const select = row.querySelector('.correct-select');
+        const inps = [row.querySelector('.opt-a'), row.querySelector('.opt-b'), row.querySelector('.opt-c'), row.querySelector('.opt-d')];
+        const updateSelect = () => {
+            const current = select.value;
+            select.innerHTML = inps.map((inp, idx) => `<option value="${escapeHtml(inp.value)}">${['A','B','C','D'][idx]}: ${escapeHtml(inp.value)}</option>`).join('');
+            if(Array.from(select.options).some(o=>o.value===current)) select.value=current;
+        };
+        inps.forEach(i=>i.addEventListener('input', updateSelect));
+        updateSelect();
+        if(vals.correct) setTimeout(()=>{ if(Array.from(select.options).some(opt=>opt.value===vals.correct)) select.value=vals.correct; }, 10);
+        return row;
+    }
+    function resetDefaultTable() { domGame.tableBody.innerHTML = ''; DEFAULT_QUESTIONS.forEach(q => addQuestionRow({ q: q.q, a: q.a, b: q.b, c: q.c, d: q.d, correct: q.correct })); }
+    function collectTableData() { return Array.from(domGame.tableBody.querySelectorAll('tr')).map(row=>({ q: row.querySelector('.question-input').value.trim(), options: [row.querySelector('.opt-a').value.trim(), row.querySelector('.opt-b').value.trim(), row.querySelector('.opt-c').value.trim(), row.querySelector('.opt-d').value.trim()], correct: row.querySelector('.correct-select').value })).filter(q=>q.q && q.options.every(opt=>opt)); }
+    function refreshTableDisplay() { if(domGame.tableBody.children.length===0) resetDefaultTable(); }
+    function saveTableAndClose() { 
+        gameState.pool = collectTableData(); 
+        if(gameState.pool.length===0){ resetDefaultTable(); gameState.pool=collectTableData(); } 
+        closeModal('ques-modal'); 
+    }
+
+    // 批量导入
+    window.importBatchQuestions = function(){
+        const raw = document.getElementById('batch-text').value;
+        if(!raw.trim()){ alert("请粘贴数据"); return; }
+        const lines = raw.split(/\r?\n/);
+        let added = 0, errors = [];
+        for(let i=0;i<lines.length;i++){
+            let line = lines[i].trim();
+            if(!line) continue;
+            let parts = null;
+            if(line.includes('|')) parts = line.split('|').map(s=>s.trim());
+            else if(line.includes('\t')) parts = line.split('\t').map(s=>s.trim());
+            else if(line.includes(',')) parts = line.split(',').map(s=>s.trim());
+            else parts = [line];
+            if(parts.length < 6){ errors.push(`第${i+1}行字段不足 (需要6列)`); continue; }
+            const [q, a, b, c, d, correct] = parts;
+            if(!q || !a || !b || !c || !d || !correct){ errors.push(`第${i+1}行有空字段`); continue; }
+            const optionList = [a,b,c,d];
+            if(!optionList.includes(correct)){ errors.push(`第${i+1}行正确选项"${correct}"不在A/B/C/D中`); continue; }
+            addQuestionRow({ q, a, b, c, d, correct });
+            added++;
+        }
+        if(errors.length) alert(`✅ 成功添加 ${added} 题，⚠️ ${errors.length} 行错误:\n${errors.slice(0,5).join('\n')}`);
+        else alert(`🎉 成功添加 ${added} 题！`);
+        document.getElementById('batch-text').value = '';
+        closeBatchPanel();
+    };
+    window.openBatchPanel = () => document.getElementById('batch-panel').classList.remove('hidden');
+    window.closeBatchPanel = () => document.getElementById('batch-panel').classList.add('hidden');
+    window.clearBatchText = () => document.getElementById('batch-text').value = '';
+    window.addQuestionRow = () => addQuestionRow();
+    window.resetDefaultTable = resetDefaultTable;
+    window.saveTableAndClose = saveTableAndClose;
+    window.openModal = (id) => { if(!gameState.active) document.getElementById(id).style.display = 'flex'; };
+    window.closeModal = (id) => document.getElementById(id).style.display = 'none';
+
+    // 游戏核心逻辑
+    const PULL_STEP = 22, MAX_SHIFT = 150;
+    function clearAllTimeouts() { gameState.pendingTimeouts.forEach(id=>clearTimeout(id)); gameState.pendingTimeouts=[]; }
+    function addTimeout(fn,delay){ const id = setTimeout(()=>{ fn(); gameState.pendingTimeouts = gameState.pendingTimeouts.filter(t=>t!==id); },delay); gameState.pendingTimeouts.push(id); return id; }
+    function updateScoresAndRope() {
+        domGame.score1.textContent = gameState.score1; domGame.score2.textContent = gameState.score2;
+        gameState.ropePos = Math.max(-MAX_SHIFT, Math.min(MAX_SHIFT, gameState.ropePos));
+        domGame.rope.style.transform = `translateX(${gameState.ropePos}px)`;
+        if(gameState.active && Math.abs(gameState.ropePos) >= MAX_SHIFT) endGame();
+    }
+    function formatTime(sec){ const m=Math.floor(sec/60), s=sec%60; return `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`; }
+    function updateTimerDisplay(){ domGame.timer.textContent = formatTime(gameState.timeLeft); }
+    function animatePull(el){ el.classList.remove('idle-float'); el.classList.add('pull-anim'); addTimeout(()=>{ if(el){ el.classList.remove('pull-anim'); el.classList.add('idle-float'); } },400); }
+    
+    function takeRandomQuestion(team) {
+        const remaining = team === 1 ? gameState.team1Remaining : gameState.team2Remaining;
+        if(!remaining.length) return null;
+        const idx = Math.floor(Math.random() * remaining.length);
+        const q = remaining[idx];
+        remaining.splice(idx, 1);
+        return q;
+    }
+    
+    function renderQuestion(team){
+        if(!gameState.active) return;
+        const item = takeRandomQuestion(team);
+        if(!item) {
+            const qBox = team===1?domGame.q1:domGame.q2;
+            const optsBox = team===1?domGame.o1:domGame.o2;
+            qBox.textContent = team===1 ? "🐰 朱迪已完成所有题目！" : "🦊 尼克已完成所有题目！";
+            optsBox.innerHTML = '<div class="text-center text-slate-500 p-4">✨ 所有题目已答完 ✨</div>';
+            // 检查双方是否都已无题，如果是则结束游戏
+            if(gameState.active && gameState.team1Remaining.length === 0 && gameState.team2Remaining.length === 0) {
+                endGame();
+            }
+            return;
+        }
+        const qBox = team===1?domGame.q1:domGame.q2, optsBox=team===1?domGame.o1:domGame.o2;
+        qBox.textContent = item.q;
+        optsBox.innerHTML = '';
+        [...item.options].sort(()=>Math.random()-0.5).forEach(opt=>{
+            const btn = document.createElement('button');
+            btn.className = 'choice-btn w-full p-3.5 rounded-2xl font-bold text-sm bg-white border-b-4 border-slate-200 hover:bg-slate-50';
+            btn.textContent = opt;
+            btn.onclick = () => handleAnswer(team, opt===item.correct, btn, item.correct, item.q);
+            optsBox.appendChild(btn);
+        });
+    }
+    
+    function handleAnswer(team, isCorrect, btn, correctAnswer, questionText){
+        if(!gameState.active) return;
+        const optsBox = team===1?domGame.o1:domGame.o2;
+        optsBox.querySelectorAll('button').forEach(b=>b.disabled=true);
+        gameState.gameLog[team===1?'team1':'team2'].push({question:questionText, userAnswer:btn.textContent, correctAnswer, isCorrect});
+        if(isCorrect){
+            btn.className = `choice-btn w-full p-3.5 rounded-2xl font-bold text-sm text-white border-b-4 ${team===1?'bg-blue-500 border-blue-700':'bg-orange-500 border-orange-700'}`;
+            if(team===1){ gameState.score1+=10; gameState.ropePos -= PULL_STEP; animatePull(domGame.charJudy); }
+            else { gameState.score2+=10; gameState.ropePos += PULL_STEP; animatePull(domGame.charNick); }
+            updateScoresAndRope();
+            addTimeout(()=>renderQuestion(team),500);
+        } else {
+            btn.className = 'choice-btn w-full p-3.5 rounded-2xl font-bold text-sm text-white bg-red-500 border-red-700';
+            const correctBtn = Array.from(optsBox.querySelectorAll('button')).find(b=>b.textContent===correctAnswer);
+            if(correctBtn) correctBtn.className = 'choice-btn w-full p-3.5 rounded-2xl font-bold text-sm text-white bg-green-500 border-green-700 pull-anim';
+            addTimeout(()=>renderQuestion(team),1500);
+        }
+        // 在答题后检查是否双方都已无剩余题目（注意：因为renderQuestion会异步调用，但我们在刚才已经调用了renderQuestion，新题目可能还未取出，所以最好在setTimeout之后再检查？
+        // 但为了实时性，在handleAnswer完成后立即检查也可以，因为team1Remaining/team2Remaining已经在takeRandomQuestion时被修改了。
+        // 由于使用了addTimeout延迟渲染新题，此时池子已经变更，所以我们可以在延迟执行renderQuestion之后，再检查最终状态。
+        // 更简单：在每次renderQuestion返回时已经做了检查，这里再加一层保险。
+        addTimeout(() => {
+            if(gameState.active && gameState.team1Remaining.length === 0 && gameState.team2Remaining.length === 0) {
+                endGame();
+            }
+        }, 100);
+    }
+    
+    function disableAdminButtons(disabled){ ['timeBtn','quizBtn','changePwdBtn','generateHtmlBtn'].forEach(id=>{ const btn=document.getElementById(id); if(btn) disabled?btn.classList.add('disabled-btn'):btn.classList.remove('disabled-btn'); }); }
+    
+    function endGame(){
+        if(!gameState.active) return;
+        gameState.active=false; clearInterval(gameState.timerInterval); clearAllTimeouts(); disableAdminButtons(false);
+        const winner = gameState.ropePos < 0 ? 'JUDY' : (gameState.ropePos > 0 ? 'NICK' : 'DRAW');
+        domGame.winText.textContent = winner==='DRAW'?'🤝 平局！':(winner==='JUDY'?'🐰 朱迪 胜利！':'🦊 尼克 胜利！');
+        domGame.winText.className = `text-6xl font-black mb-2 italic ${winner==='JUDY'?'text-blue-700':(winner==='NICK'?'text-orange-600':'text-slate-800')}`;
+        domGame.finalRes.textContent = `${gameState.score1} : ${gameState.score2}`;
+        const renderReport = (teamKey,container) => { const logs=gameState.gameLog[teamKey]; if(!logs||!logs.length){ container.innerHTML='<p class="text-xs text-slate-400 text-center py-4">✨ 暂无答题记录 ✨</p>'; return; } container.innerHTML=''; logs.forEach((log,idx)=>{ const div=document.createElement('div'); div.className=`p-3 rounded-xl mb-2 text-xs border-l-4 ${log.isCorrect?'bg-green-100/50 border-green-500':'bg-red-100/50 border-red-500'}`; div.innerHTML=`<p class="font-bold text-slate-700 mb-1">${idx+1}. ${escapeHtml(log.question)}</p><p class="${log.isCorrect?'text-green-700':'text-red-700'}">你的答案: ${escapeHtml(log.userAnswer)} ${log.isCorrect?'✓':'✗'}</p>${!log.isCorrect?`<p class="text-slate-500">正确答案: ${escapeHtml(log.correctAnswer)}</p>`:''}`; container.appendChild(div); }); };
+        renderReport('team1',domGame.judyReport); renderReport('team2',domGame.nickReport);
+        domGame.gameOver.classList.remove('hidden');
+        domGame.playAgainBtn.disabled = true; domGame.playAgainBtn.classList.add('opacity-50','cursor-not-allowed');
+        domGame.downloadBtn.onclick = downloadReportPDF;
+    }
+    async function downloadReportPDF(){
+        if(globalLocked) return;
+        const winnerText = domGame.winText.innerText, scoreText = domGame.finalRes.innerText;
+        const judyLogs = gameState.gameLog.team1, nickLogs = gameState.gameLog.team2;
+        function buildColumn(logs,title,borderColor,icon){ const column=document.createElement('div');column.className='pdf-column'; const card=document.createElement('div');card.className='pdf-card'; const titleDiv=document.createElement('div');titleDiv.className='pdf-card-title';titleDiv.style.borderLeftColor=borderColor;titleDiv.innerHTML=`${icon} ${title}`; card.appendChild(titleDiv); if(!logs||!logs.length){ const empty=document.createElement('p');empty.textContent='✨ 暂无答题记录 ✨';empty.style.textAlign='center';empty.style.color='#94a3b8';empty.style.padding='1rem';card.appendChild(empty); } else { logs.forEach((log,idx)=>{ const record=document.createElement('div');record.className='pdf-record'; const qDiv=document.createElement('div');qDiv.className='pdf-question';qDiv.textContent=`${idx+1}. ${log.question}`;record.appendChild(qDiv); const answerDiv=document.createElement('div');answerDiv.className='pdf-answer'; const statusSpan=document.createElement('span');statusSpan.className=log.isCorrect?'correct-badge':'wrong-badge';statusSpan.textContent=log.isCorrect?'✓ 正确':'✗ 错误';answerDiv.appendChild(statusSpan);answerDiv.appendChild(document.createTextNode(` 你的答案: ${log.userAnswer}`));record.appendChild(answerDiv); if(!log.isCorrect){ const correctDiv=document.createElement('div');correctDiv.className='pdf-correct-answer';correctDiv.textContent=`正确答案: ${log.correctAnswer}`;record.appendChild(correctDiv); } card.appendChild(record); }); } column.appendChild(card); return column; }
+        const container=document.createElement('div');container.className='pdf-report-container';
+        const header=document.createElement('div');header.className='pdf-header';header.innerHTML=`<h1 style="font-size:2rem;font-weight:900;">🐰 vs 🦊 疯狂动物城·拔河战报</h1><p style="color:#475569;">${new Date().toLocaleString()}</p>`;
+        container.appendChild(header);
+        const scoreDiv=document.createElement('div');scoreDiv.style.textAlign='center';scoreDiv.innerHTML=`<div class="pdf-score">🏆 ${winnerText} &nbsp;&nbsp; ${scoreText}</div>`;
+        container.appendChild(scoreDiv);
+        const columnsWrapper=document.createElement('div');columnsWrapper.className='pdf-two-columns';
+        columnsWrapper.appendChild(buildColumn(judyLogs,'朱迪的答题记录','#2563eb','🐰'));
+        columnsWrapper.appendChild(buildColumn(nickLogs,'尼克的答题记录','#ea580c','🦊'));
+        container.appendChild(columnsWrapper);
+        const style=document.createElement('style');style.textContent=` .pdf-report-container *{font-family:'Inter',sans-serif;} .pdf-two-columns{display:flex;flex-direction:row;gap:2rem;flex-wrap:wrap;} .pdf-column{flex:1;min-width:280px;break-inside:avoid;} `;
+        container.appendChild(style);
+        document.body.appendChild(container);
+        try{ const opt={ margin:[0.5,0.5,0.5,0.5], filename:`zootopia_tugwar_${Date.now()}.pdf`, image:{type:'jpeg',quality:0.98}, html2canvas:{scale:2,letterRendering:true}, jsPDF:{unit:'in',format:'a4',orientation:'portrait'} }; await html2pdf().set(opt).from(container).save(); domGame.playAgainBtn.disabled=false; domGame.playAgainBtn.classList.remove('opacity-50','cursor-not-allowed'); alert("✅ 战报已保存！现在可以点击「再战一局」继续游戏。"); } catch(e){ console.error(e); alert("生成PDF失败，请重试"); } finally{ document.body.removeChild(container); } }
+    
+    function applyAndStart(){
+        if(globalLocked) return;
+        if(gameState.active) resetGame(true);
+        clearAllTimeouts(); clearInterval(gameState.timerInterval);
+        let currentMax = parseInt(timeInput.value, 10);
+        if(isNaN(currentMax)) currentMax = 30;
+        currentMax = Math.min(600, Math.max(10, currentMax));
+        gameState.maxTime = currentMax;
+        if(!gameState.pool.length){ resetDefaultTable(); gameState.pool=collectTableData(); }
+        if(gameState.pool.length === 0) { alert("题库为空，请先添加题目！"); return; }
+        gameState.team1Remaining = gameState.pool.map(q => ({ ...q, options: [...q.options] }));
+        gameState.team2Remaining = gameState.pool.map(q => ({ ...q, options: [...q.options] }));
+        gameState.score1=0; gameState.score2=0; gameState.ropePos=0; gameState.timeLeft=gameState.maxTime;
+        gameState.gameLog={team1:[],team2:[]}; gameState.active=true;
+        domGame.gameOver.classList.add('hidden');
+        updateScoresAndRope(); updateTimerDisplay();
+        disableAdminButtons(true);
+        renderQuestion(1);
+        renderQuestion(2);
+        gameState.timerInterval = setInterval(()=>{ 
+            if(!gameState.active) return; 
+            gameState.timeLeft--; 
+            updateTimerDisplay(); 
+            if(gameState.timeLeft<=0){ 
+                clearInterval(gameState.timerInterval); 
+                endGame(); 
+            } 
+        },1000);
+    }
+    function resetGame(keepPool=false){ 
+        if(globalLocked) return;
+        gameState.active=false; 
+        clearInterval(gameState.timerInterval); 
+        clearAllTimeouts(); 
+        disableAdminButtons(false); 
+        domGame.gameOver.classList.add('hidden'); 
+        domGame.score1.textContent='0'; domGame.score2.textContent='0'; 
+        domGame.q1.textContent="🐾 准备好了吗？"; domGame.q2.textContent="🦊 来吧！"; 
+        domGame.o1.innerHTML=''; domGame.o2.innerHTML=''; 
+        domGame.rope.style.transform='translateX(0)'; 
+        gameState.score1=0; gameState.score2=0; gameState.ropePos=0; 
+        gameState.timeLeft = gameState.maxTime;
+        gameState.gameLog={team1:[],team2:[]}; 
+        updateTimerDisplay(); 
+        if(gameState.pool.length) {
+            gameState.team1Remaining = gameState.pool.map(q => ({ ...q, options: [...q.options] }));
+            gameState.team2Remaining = gameState.pool.map(q => ({ ...q, options: [...q.options] }));
+        }
+    }
+    function initGame(){ 
+        loadSavedTime();
+        resetDefaultTable(); 
+        gameState.pool = collectTableData(); 
+        gameState.team1Remaining = [...gameState.pool]; 
+        gameState.team2Remaining = [...gameState.pool]; 
+        domGame.gameOver.classList.add('hidden'); 
+        updateTimerDisplay(); 
+    }
+    domGame.playAgainBtn.onclick = () => { if(!domGame.playAgainBtn.disabled) resetGame(); else alert("请先下载战报PDF再开始新对局！"); };
+    window.resetGame = resetGame;
+    window.applyAndStart = applyAndStart;
+    function generateStandaloneHTML(){
+        const currentQuestions = collectTableData();
+        if(currentQuestions.length===0){ alert("题库为空！"); return; }
+        const currentTime = timeInput.value;
+        let htmlContent = document.documentElement.outerHTML;
+        const newQuestionsStr = JSON.stringify(currentQuestions.map(q=>({ q:q.q, a:q.options[0], b:q.options[1], c:q.options[2], d:q.options[3], correct:q.correct })), null, 2);
+        htmlContent = htmlContent.replace(/const DEFAULT_QUESTIONS = \[[\s\S]*?\];/, `const DEFAULT_QUESTIONS = ${newQuestionsStr};`);
+        htmlContent = htmlContent.replace(/document\.getElementById\('setup-time'\)\.value = "?\d+"?;/, `document.getElementById('setup-time').value = "${currentTime}";`);
+        const blob = new Blob([htmlContent], {type:'text/html'});
+        const link = document.createElement('a'); link.download = `zootopia_game_${Date.now()}.html`; link.href = URL.createObjectURL(blob); link.click(); URL.revokeObjectURL(link.href);
+        alert("✅ HTML已生成，包含当前所有题目和时长设置。");
+    }
+    document.getElementById('generateHtmlBtn').onclick = () => { if(globalLocked) return; generateStandaloneHTML(); };
+    initGame();
+})();
+</script>
+
+</body></html>
